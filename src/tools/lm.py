@@ -5,8 +5,8 @@ import dspy
 import os
 from openai import OpenAI
 from zhipuai import ZhipuAI
-from typing import Optional, Literal, Any, List
-import dashscope # Added dashscope for global config
+from typing import Optional, Literal, Any, List, Dict # Added Dict
+import dashscope
 from dashscope import Generation
 
 # This code is originally sourced from Repository STORM
@@ -78,7 +78,7 @@ class OpenAIModel_dashscope(dspy.OpenAI):
             only_completed: bool = True,
             return_sorted: bool = False,
             **kwargs,
-    ) -> list[dict[str, Any]]:
+    ) -> list[dict[str, Any]]: # Retained original type hint for this specific class
         """Copied from dspy/dsp/modules/gpt3.py with the addition of tracking token usage."""
 
         assert only_completed, "for now"
@@ -91,45 +91,49 @@ class OpenAIModel_dashscope(dspy.OpenAI):
             "Authorization": f"Bearer {LM_KEY}"
         }
 
-        kwargs = dict(
+        kwargs_call = dict( # Renamed to avoid conflict with method's kwargs
             model=self.model,
             messages=[{"role": "user", "content": prompt}],
             max_completion_tokens=self.max_tokens,
             stream=False,
         )
-        import requests
+        import requests # Keep import local if only used here
         max_try = 10
         for i in range(max_try):
             try:
-                ret = requests.post(CALL_URL, json=kwargs,
+                ret = requests.post(CALL_URL, json=kwargs_call, # Use renamed dict
                                     headers=HEADERS, timeout=1000)
                 if ret.status_code != 200:
                     raise Exception(f"http status_code: {ret.status_code}\n{ret.content}")
                 ret_json = ret.json()
-                for output in ret_json['choices']:
-                    if output['finish_reason'] not in ['stop', 'function_call']:
+                for output_choice in ret_json['choices']: # Renamed to avoid conflict
+                    if output_choice['finish_reason'] not in ['stop', 'function_call']:
                         raise Exception(f'openai finish with error...\n{ret_json}')
                 return [ret_json['choices'][0]['message']['content']]
             except Exception as e:
                 print(f"请求失败: {e}. 尝试重新请求...")    
                 time.sleep(1)
+        return [] # Ensure return outside loop if all retries fail
 
 
-class DeepSeekModel(dspy.OpenAI):
-    """A wrapper class for DeepSeek models using the OpenAI SDK."""
-
+class BaseDeepSeekModel(dspy.OpenAI):
+    """
+    Base class for DeepSeek models providing common initialization for API key,
+    base URL, client, and token tracking. It also handles the common API call
+    logic, while message preparation is delegated to subclasses.
+    """
     def __init__(
             self,
-            model: str = "deepseek-chat",
+            model: str,
             api_key: Optional[str] = None,
             api_base_url: Optional[str] = None,
             **kwargs
     ):
         """
-        Initializes the DeepSeekModel.
+        Initializes the BaseDeepSeekModel.
 
         Args:
-            model (str, optional): The model name to use. Defaults to "deepseek-chat".
+            model (str): The specific DeepSeek model name (e.g., "deepseek-chat").
             api_key (Optional[str], optional): The DeepSeek API key.
                 Resolution priority:
                 1. This `api_key` parameter.
@@ -154,29 +158,24 @@ class DeepSeekModel(dspy.OpenAI):
         if resolved_base_url is None:
             resolved_base_url = "https://api.deepseek.com"
 
-        # Note: dspy.OpenAI might expect 'api_base' or 'base_url'.
-        # Using 'base_url' as it's standard for OpenAI client v1.x.
-        # If 'api_base' is required by dspy.OpenAI, this line may need adjustment.
+        # For dspy.OpenAI, base_url is the correct parameter.
+        # If dspy.OpenAI specifically expected api_base, this would need adjustment.
         super().__init__(model=model, api_key=resolved_api_key, base_url=resolved_base_url, **kwargs)
 
         self.model = model
-
         self.client = OpenAI(api_key=resolved_api_key, base_url=resolved_base_url)
 
         self._token_usage_lock = threading.Lock()
         self.prompt_tokens = 0
         self.completion_tokens = 0
 
-    def get_usage_and_reset(self):
-        """Get the total tokens used and reset the token usage."""
-        # This method remains as per existing functionality if not specified for removal/change.
-        usage = {
-            (self.kwargs.get('model') or self.kwargs.get('engine') or self.model): # Ensure model key exists
-                {'prompt_tokens': self.prompt_tokens, 'completion_tokens': self.completion_tokens}
-        }
-        self.prompt_tokens = 0
-        self.completion_tokens = 0
-        return usage
+    def _prepare_messages(self, prompt: str) -> List[Dict[str, str]]:
+        """
+        Prepares the list of messages for the API call.
+        Subclasses should override this to add model-specific system prompts
+        or other message formatting.
+        """
+        return [{"role": "user", "content": prompt}]
 
     def __call__(
             self,
@@ -185,25 +184,31 @@ class DeepSeekModel(dspy.OpenAI):
             return_sorted: bool = False,
             **kwargs,
     ) -> List[str]:
+        """
+        Makes an API call to the DeepSeek model.
+        Handles retries and token counting. Message preparation is done by
+        `_prepare_messages`.
+        """
         assert only_completed, "for now"
         assert return_sorted is False, "for now"
 
+        messages = self._prepare_messages(prompt)
+
         max_retries = 3
         attempt = 0
-        messages = []
-        # This logic for system prompt is preserved from the original __call__
-        if self.model != "deepseek-reasoner":
-            messages.append({"role": "system", "content": "You are a helpful assistant"})
-        messages.append({"role": "user", "content": prompt})
-
         response_obj = None
+        # Pass through relevant kwargs from dspy.OpenAI to the client if any.
+        # Common ones like 'temperature', 'max_tokens' (already handled by some models), 'top_p', etc.
+        # For this base class, we'll pass all additional kwargs.
+        client_kwargs = {k: v for k, v in kwargs.items() if k not in ['only_completed', 'return_sorted']}
+
         while attempt < max_retries:
             try:
                 response_obj = self.client.chat.completions.create(
                     model=self.model,
                     messages=messages,
                     stream=False,
-                    **kwargs # Pass through any additional kwargs
+                    **client_kwargs
                 )
 
                 if response_obj and response_obj.usage:
@@ -213,26 +218,105 @@ class DeepSeekModel(dspy.OpenAI):
 
                 choices_to_process = response_obj.choices if response_obj else []
 
-                completions = []
-                if choices_to_process:
-                    if only_completed:
-                        completed_choices = [c for c in choices_to_process if c.finish_reason != "length"]
-                        # If only_completed is True and all choices were truncated,
-                        # it will return an empty list, which is the desired behavior.
-                        completions = [c.message.content for c in completed_choices if c.message]
-                    else:
-                        completions = [c.message.content for c in choices_to_process if c.message]
+                if only_completed:
+                    completed_choices = [c for c in choices_to_process if c.finish_reason != "length"]
+                    choices_to_process = completed_choices
 
+                completions = [c.message.content for c in choices_to_process if c.message and c.message.content is not None]
                 return completions
 
             except Exception as e:
-                print(f"DeepSeek API call failed on attempt {attempt + 1}/{max_retries}: {e}")
+                print(f"DeepSeek API call failed (model: {self.model}) on attempt {attempt + 1}/{max_retries}: {e}")
+                # Consider logging the full error for debugging if necessary
+                # import traceback
+                # print(traceback.format_exc())
                 delay = random.uniform(1, 3)
                 time.sleep(delay)
                 attempt += 1
 
-        print(f"DeepSeek API call failed after {max_retries} retries for prompt: {prompt[:100]}...")
+        print(f"DeepSeek API call failed after {max_retries} retries for model {self.model}, prompt: {prompt[:100]}...")
         return []
+
+    def get_usage_and_reset(self):
+        """Get the total tokens used and reset the token usage."""
+        model_key = self.kwargs.get('model_name') or self.kwargs.get('engine') or self.model # dspy.OpenAI uses model_name
+        usage = {
+            model_key:
+                {'prompt_tokens': self.prompt_tokens, 'completion_tokens': self.completion_tokens}
+        }
+        self.prompt_tokens = 0
+        self.completion_tokens = 0
+        return usage
+
+
+class DeepSeekChatModel(BaseDeepSeekModel):
+    """
+    Specialized DeepSeek model class for chat applications,
+    includes a default system prompt for helpful assistance.
+    """
+
+    def __init__(
+            self,
+            model: str = "deepseek-chat",
+            api_key: Optional[str] = None,
+            api_base_url: Optional[str] = None,
+            **kwargs
+    ):
+        """
+        Initializes the DeepSeekChatModel.
+
+        Args:
+            model (str, optional): The specific DeepSeek chat model name.
+                                   Defaults to "deepseek-chat".
+            api_key (Optional[str], optional): The DeepSeek API key.
+            api_base_url (Optional[str], optional): The base URL for the DeepSeek API.
+            **kwargs: Additional keyword arguments for BaseDeepSeekModel.
+        """
+        super().__init__(model=model, api_key=api_key, api_base_url=api_base_url, **kwargs)
+
+    def _prepare_messages(self, prompt: str) -> List[Dict[str, str]]:
+        """
+        Prepares the messages list for the API call, including a system prompt
+        for helpful chat behavior.
+        """
+        return [
+            {"role": "system", "content": "You are a helpful assistant"},
+            {"role": "user", "content": prompt},
+        ]
+
+
+class DeepSeekReasonerModel(BaseDeepSeekModel):
+    """
+    Specialized DeepSeek model class for reasoner-type applications,
+    which does not include a default system prompt.
+    """
+
+    def __init__(
+            self,
+            model: str = "deepseek-reasoner",
+            api_key: Optional[str] = None,
+            api_base_url: Optional[str] = None,
+            **kwargs
+    ):
+        """
+        Initializes the DeepSeekReasonerModel.
+
+        Args:
+            model (str, optional): The specific DeepSeek reasoner model name.
+                                   Defaults to "deepseek-reasoner".
+            api_key (Optional[str], optional): The DeepSeek API key.
+            api_base_url (Optional[str], optional): The base URL for the DeepSeek API.
+            **kwargs: Additional keyword arguments for BaseDeepSeekModel.
+        """
+        super().__init__(model=model, api_key=api_key, api_base_url=api_base_url, **kwargs)
+
+    def _prepare_messages(self, prompt: str) -> List[Dict[str, str]]:
+        """
+        Prepares the messages list for the API call, containing only the user prompt.
+        """
+        return [
+            {"role": "user", "content": prompt},
+        ]
 
 
 class QwenModel(dspy.OpenAI):
@@ -327,6 +411,8 @@ class QwenModel(dspy.OpenAI):
         max_retries = 3
         attempt = 0
         response = None
+        # kwargs from dspy.OpenAI are not directly passed to Generation.call unless supported
+        # For now, not passing **kwargs to Generation.call as per previous QwenModel structure
         while attempt < max_retries:
             try:
                 response = dashscope.Generation.call(
@@ -342,12 +428,10 @@ class QwenModel(dspy.OpenAI):
 
                     processed_choices = choices
                     if only_completed:
-                        # Dashscope choices have 'finish_reason' which can be 'stop', 'length', etc.
                         completed_choices = [c for c in choices if c.get('finish_reason') != "length"]
-                        if completed_choices or not choices: # If choices were empty, stick with empty
+                        if completed_choices or not choices:
                             processed_choices = completed_choices
-                        else: # only_completed is True, but all choices were filtered out due to 'length'
-                              # and there were choices to begin with.
+                        else:
                             processed_choices = []
 
                     completions = [c['message']['content'] for c in processed_choices if c.get('message') and c['message'].get('content')]
