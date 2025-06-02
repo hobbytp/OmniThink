@@ -20,10 +20,18 @@ class OpenAIModel_dashscope(dspy.OpenAI):
             model: str = "gpt-4o",
             max_tokens: int = 2000,
             api_key: Optional[str] = None,
+            api_base_url: Optional[str] = None,  # New parameter
             **kwargs
     ):
-        super().__init__(model=model, api_key=api_key, base_url='https://api.gpts.vin/', **kwargs)
-        print(model)
+        # Determine the base_url
+        resolved_base_url = api_base_url  # Prioritize parameter
+        if resolved_base_url is None:
+            resolved_base_url = os.getenv("OPENAI_BASE_URL")  # Then environment variable
+        if resolved_base_url is None:
+            resolved_base_url = 'https://api.gpts.vin/'  # Fallback to default
+
+        super().__init__(model=model, api_key=api_key, base_url=resolved_base_url, **kwargs)
+        print(model) # This print seems to be for debugging, let's keep it for now
         self.model = model
         self._token_usage_lock = threading.Lock()
         self.max_tokens = max_tokens
