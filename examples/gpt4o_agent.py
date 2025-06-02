@@ -13,9 +13,16 @@ from src.tools.rm import GoogleSearchAli
 
 
 def load_config(config_path: str) -> dict:
-    with open(config_path, 'r', encoding='utf-8') as file:
-        config = yaml.safe_load(file)
-    return config
+    try:
+        with open(config_path, 'r', encoding='utf-8') as file:
+            config = yaml.safe_load(file)
+        return config if config else {} # Return empty dict if file is empty
+    except FileNotFoundError:
+        print(f"Info: Config file not found at {config_path}. Using defaults and command-line args.")
+        return {} # Return empty dict if file not found
+    except yaml.YAMLError as e:
+        print(f"Warning: Error parsing config file {config_path}: {e}. Using defaults and command-line args.")
+        return {} # Return empty dict if YAML is invalid
 
 
 def extract_agent_arguments(text: str, pattern: str = r'[A-Za-z]+'):
@@ -33,6 +40,7 @@ def main(args):
         'temperature': 1.0,
         'top_p': 0.9,
         'api_key': os.getenv("OPENAI_API_KEY"),
+        'api_base_url': os.getenv("OPENAI_BASE_URL"), # Added this line
     }
 
     if args.retriever == 'google':
