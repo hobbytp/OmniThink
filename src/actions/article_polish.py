@@ -2,6 +2,7 @@ import copy
 from typing import Union
 import dspy
 from src.utils.ArticleTextProcessing import ArticleTextProcessing
+from src.langchain_support.dspy_equivalents import LangchainModule, LangchainSignature, LangchainPredict
 
 # This code is originally sourced from Repository STORM
 # URL: [https://github.com/stanford-oval/storm]
@@ -12,20 +13,24 @@ class ArticlePolishingModule():
     """
 
     def __init__(self,
-                 article_gen_lm: Union[dspy.dsp.LM, dspy.dsp.HFModel],
-                 article_polish_lm: Union[dspy.dsp.LM, dspy.dsp.HFModel]):
-        self.article_gen_lm = article_gen_lm
+                 article_gen_lm: Union[dspy.dsp.LM, dspy.dsp.HFModel], # Retained for potential future use, not directly used by PolishPageModule
+                 article_polish_lm: Union[dspy.dsp.LM, dspy.dsp.HFModel], # This is the one used
+                 framework: str = 'dspy'):
+        self.article_gen_lm = article_gen_lm 
         self.article_polish_lm = article_polish_lm
+        self.framework = framework
 
-        self.polish_page = PolishPageModule(
-            write_lead_engine=self.article_gen_lm,
-            polish_engine=self.article_polish_lm
+        self.polish_page_module = PolishPageModule( # Renamed to avoid confusion with 'page' field
+            # write_lead_engine is not used in PolishPageModule's current forward method, but kept for signature consistency
+            write_lead_engine=self.article_gen_lm, 
+            polish_engine=self.article_polish_lm,
+            framework=self.framework
         )
 
     def polish_article(self,
-                       topic: str,
+                       topic: str, # topic is passed to polish_page_module, but not used in its forward
                        draft_article,
-                       remove_duplicate: bool = False):
+                       remove_duplicate: bool = False): # remove_duplicate maps to polish_whole_page
         """
         Polish article.
 
@@ -36,39 +41,82 @@ class ArticlePolishingModule():
         """
 
         article_text = draft_article.to_string()
-        remove_duplicate = True
-        polish_result = self.polish_page(topic=topic, draft_page=article_text, polish_whole_page=remove_duplicate)
+        # remove_duplicate = True # This was hardcoded, let's use the parameter
+        
+        # polish_page_module returns a dict for langchain, dspy.Prediction for dspy
+        polish_result_pred = self.polish_page_module(
+            topic=topic, # Passed to forward, though not used by current PolishPageSignature
+            draft_page=article_text, 
+            polish_whole_page=remove_duplicate
+        )
 
-        polished_article = polish_result.page
+        if self.framework == 'langchain':
+            polished_article_text = polish_result_pred['page']
+        else: # dspy
+            polished_article_text = polish_result_pred.page
 
-        polished_article_dict = ArticleTextProcessing.parse_article_into_dict(polished_article)
-        polished_article = copy.deepcopy(draft_article)
-        polished_article.insert_or_create_section(article_dict=polished_article_dict)
-        polished_article.post_processing()
-        return polished_article
+        polished_article_dict = ArticleTextProcessing.parse_article_into_dict(polished_article_text)
+        polished_article_obj = copy.deepcopy(draft_article) # Keep variable name distinct
+        polished_article_obj.insert_or_create_section(article_dict=polished_article_dict)
+        polished_article_obj.post_processing()
+        return polished_article_obj
 
+
+class LangchainPolishPageSignature(LangchainSignature):
+    def __init__(self):
+        super().__init__(
+            input_fields=["article"], # 'topic' and 'polish_whole_page' are not in dspy.PolishPage signature
+            output_fields=["page"],
+            prompt_template_str="""You are a faithful text editor that is good at finding repeated information in the article and deleting them to make sure there is no repetition in the article. You won't delete any non-repeated part in the article. You will keep the inline citations and article structure (indicated by "#", "##", etc.) appropriately. Do your job for the following article.
+
+The article you need to polish:
+{article}
+
+Your revised article:
+"""
+        )
 
 class PolishPage(dspy.Signature):
     """You are a faithful text editor that is good at finding repeated information in the article and deleting them to make sure there is no repetition in the article. You won't delete any non-repeated part in the article. You will keep the inline citations and article structure (indicated by "#", "##", etc.) appropriately. Do your job for the following article."""
     article = dspy.InputField(prefix="The article you need to polish:\n", format=str)
-    page = dspy.OutputField(
+    page = dspy.OutputField( # Corresponds to 'page' in LangchainSignature output_fields
         prefix="Your revised article:\n",
         format=str)
 
 
-class PolishPageModule(dspy.Module):
-    def __init__(self, write_lead_engine: Union[dspy.dsp.LM, dspy.dsp.HFModel],
-                 polish_engine: Union[dspy.dsp.LM, dspy.dsp.HFModel]):
+class PolishPageModule(dspy.Module): # Can also be LangchainModule
+    def __init__(self, 
+                 write_lead_engine: Union[dspy.dsp.LM, dspy.dsp.HFModel], # Not used in current forward
+                 polish_engine: Union[dspy.dsp.LM, dspy.dsp.HFModel],
+                 framework: str = 'dspy'):
         super().__init__()
         self.write_lead_engine = write_lead_engine
         self.polish_engine = polish_engine
-        self.polish_page = dspy.Predict(PolishPage)
+        self.framework = framework
+
+        if self.framework == 'langchain':
+            self.polish_page_predictor = LangchainPredict(
+                signature=LangchainPolishPageSignature(),
+                llm=self.polish_engine
+            )
+        else: # dspy
+            self.polish_page_predictor = dspy.Predict(PolishPage)
 
     def forward(self, topic: str, draft_page: str, polish_whole_page: bool = True):
-
-        with dspy.settings.context(lm=self.polish_engine):
-            page = self.polish_page(article=draft_page).page
-
-        return dspy.Prediction(page=page)
+        # topic and polish_whole_page are not used by the dspy.PolishPage signature
+        # or the LangchainPolishPageSignature as defined (which matches PolishPage).
+        # They are kept in the method signature for interface consistency with ArticlePolishingModule.
+        
+        if self.framework == 'langchain':
+            # dspy.settings.context might not be relevant for LangChain LLMs
+            # Assuming self.polish_engine is a LangChain LLM here.
+            prediction = self.polish_page_predictor(article=draft_page)
+            page_content = prediction['page']
+            return {"page": page_content}
+        else: # dspy
+            with dspy.settings.context(lm=self.polish_engine):
+                prediction = self.polish_page_predictor(article=draft_page)
+                page_content = prediction.page
+            return dspy.Prediction(page=page_content)
 
 
