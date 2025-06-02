@@ -2,7 +2,7 @@ import os
 import sys
 from argparse import ArgumentParser
 import yaml # Added
-from src.tools.lm import DeepSeekChatModel, DeepSeekReasonerModel # Updated
+from src.tools.dspy.lm import DeepSeekChatModel, DeepSeekReasonerModel # Updated
 from src.tools.rm import GoogleSearchAli
 from src.tools.mindmap import MindMap
 from src.actions.outline_generation import OutlineGenerationModule
