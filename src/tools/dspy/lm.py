@@ -111,7 +111,7 @@ class OpenAIModel_dashscope(dspy.OpenAI):
                         raise Exception(f'openai finish with error...\n{ret_json}')
                 return [ret_json['choices'][0]['message']['content']]
             except Exception as e:
-                print(f"请求失败: {e}. 尝试重新请求...")    
+                print(f"请求失败: {e}. 尝试重新请求...")
                 time.sleep(1)
         return [] # Ensure return outside loop if all retries fail
 
@@ -416,7 +416,7 @@ class QwenModel(dspy.OpenAI):
         while attempt < max_retries:
             try:
                 response = dashscope.Generation.call(
-                    model=self.model, 
+                    model=self.model,
                     messages=messages,
                     result_format='message',
                 )

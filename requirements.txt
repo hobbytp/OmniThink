@@ -29,10 +29,11 @@ langchain-huggingface
 qdrant-client
 langchain-qdrant
 dashscope==1.20.12
-langchain_text_splitters
 transformers==4.46.2
-langchain_qdrant
-langchain_huggingface
 prometheus-eval==0.1.20
 spacy==3.8.2
 numpy==1.26.4
+langchain
+langchain-openai
+langgraph
+langchain-community

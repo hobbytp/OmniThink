@@ -26,6 +26,14 @@ def main(args, parser_obj): # Pass parser_obj to access defaults
     config_data = load_config(args.cfg)
     ds_config = config_data.get('deepseekr1_settings', {})
 
+    # Resolve framework choice first
+    framework_choice = args.framework # From CLI
+    if framework_choice is None: # If not set by CLI
+        framework_choice = config_data.get('framework', 'dspy') # Try config (from root of config_data), else default 'dspy'
+
+    print(f"[*] Using framework: {framework_choice}")
+    # setattr(args, 'selected_framework', framework_choice) # Optional: store it back
+
     # Resolve settings with precedence: CLI > Config > Argparse default
     outputdir_resolved = args.outputdir
     if args.outputdir == parser_obj.get_default('outputdir'):
@@ -125,6 +133,10 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--cfg', type=str, default='config.yaml',
                         help='Path to the configuration YAML file.')
+
+    parser.add_argument('--framework', type=str, default=None,
+                        choices=['dspy', 'langchain'],
+                        help='The framework to use ("dspy" or "langchain"). Overrides config.yaml.')
     parser.add_argument('--outputdir', type=str, default='./results',
                         help='Directory to store the outputs.')
     parser.add_argument('--threadnum', type=int, default=3,
