@@ -33,6 +33,7 @@ def main(args):
         'temperature': 1.0,
         'top_p': 0.9,
         'api_key': os.getenv("OPENAI_API_KEY"),
+        'api_base_url': os.getenv("OPENAI_BASE_URL"), # Added this line
     }
 
     if args.retriever == 'google':
