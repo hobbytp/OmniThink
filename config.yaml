@@ -3,3 +3,10 @@ agent:
 #  name_list: ["WriteSection", "WriteSection Agent Chinese", "WriteSection Agent English", "WriteSection Agent Formal Chinese", "WriteSection Agent Enthusiastic Chinese" , \
 #  "WriteSection Agent Enthusiastic English", "WriteSection Agent Formal English"]
 
+deepseekr1_settings:
+  outputdir: './results_deepseek' # Slightly different default to distinguish if needed
+  threadnum: 3
+  retriever: 'google' # Defaulting to google, can be changed by user
+  retrievernum: 5
+  llm: 'deepseek-chat' # Defaulting to deepseek-chat, can be changed
+  depth: 2
