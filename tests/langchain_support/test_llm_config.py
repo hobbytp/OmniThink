@@ -45,16 +45,16 @@ class TestGetLangchainLLM(unittest.TestCase):
         """Test ChatOpenAI instantiation with API key from environment."""
         if ChatOpenAI is None: # If langchain_openai is not installed
             self.skipTest("langchain-openai not installed, skipping ChatOpenAI test.")
-            
+
         # Configure the mock constructor to return a MagicMock instance
         mock_openai_instance = MagicMock(spec=ChatOpenAI)
         MockChatOpenAI.return_value = mock_openai_instance
-        
+
         llm = get_langchain_llm(provider='openai', model_name='gpt-3.5-turbo')
-        
+
         self.assertIsInstance(llm, MagicMock) # Check if it's the mocked instance
         MockChatOpenAI.assert_called_once_with(
-            model_name='gpt-3.5-turbo', 
+            model_name='gpt-3.5-turbo',
             openai_api_key="test_api_key_env"
         )
 
@@ -66,12 +66,12 @@ class TestGetLangchainLLM(unittest.TestCase):
 
         mock_openai_instance = MagicMock(spec=ChatOpenAI)
         MockChatOpenAI.return_value = mock_openai_instance
-        
+
         llm = get_langchain_llm(provider='openai', api_key="test_api_key_passed", model_name='gpt-4')
-        
+
         self.assertIsInstance(llm, MagicMock)
         MockChatOpenAI.assert_called_once_with(
-            model_name='gpt-4', 
+            model_name='gpt-4',
             openai_api_key="test_api_key_passed"
         )
 
@@ -98,7 +98,7 @@ class TestGetLangchainLLM(unittest.TestCase):
         with self.assertRaises(ImportError) as context:
             get_langchain_llm(provider='openai')
         self.assertIn("langchain-openai package not found", str(context.exception))
-        
+
 
     @patch.dict(os.environ, {"HUGGINGFACEHUB_API_TOKEN": "test_hf_token_env"})
     @patch('src.langchain_support.llm_config.HuggingFaceHub') # Mock the class
@@ -109,12 +109,12 @@ class TestGetLangchainLLM(unittest.TestCase):
 
         mock_hf_instance = MagicMock(spec=HuggingFaceHub)
         MockHuggingFaceHub.return_value = mock_hf_instance
-        
+
         llm = get_langchain_llm(provider='huggingface', model_name='google/flan-t5-small')
-        
+
         self.assertIsInstance(llm, MagicMock)
         MockHuggingFaceHub.assert_called_once_with(
-            repo_id='google/flan-t5-small', 
+            repo_id='google/flan-t5-small',
             huggingfacehub_api_token="test_hf_token_env"
         )
 
@@ -123,15 +123,15 @@ class TestGetLangchainLLM(unittest.TestCase):
         """Test HuggingFaceHub instantiation with passed token."""
         if HuggingFaceHub is None:
             self.skipTest("langchain_community or huggingface_hub not installed, skipping HuggingFaceHub test.")
-            
+
         mock_hf_instance = MagicMock(spec=HuggingFaceHub)
         MockHuggingFaceHub.return_value = mock_hf_instance
 
         llm = get_langchain_llm(provider='huggingface', api_key="test_hf_token_passed", model_name='distilbert-base-uncased')
-        
+
         self.assertIsInstance(llm, MagicMock)
         MockHuggingFaceHub.assert_called_once_with(
-            repo_id='distilbert-base-uncased', 
+            repo_id='distilbert-base-uncased',
             huggingfacehub_api_token="test_hf_token_passed"
         )
 

@@ -53,7 +53,7 @@ class ArticleGenerationModule():
             section_content = output_pred['section']
         else: # dspy
             section_content = output_pred.section
-            
+
         return {"section_name": section_name, "section_content": section_content, "collected_info": collected_info}
 
     def generate_article(self,
@@ -129,89 +129,77 @@ Write the section with proper inline citations (Start your writing with # sectio
 class ConvToSection(dspy.Module): # Can also be LangchainModule if we refactor further, but dspy.Module is fine for now
     """Use the information collected from the information-seeking conversation to write a section."""
 
-    def __init__(self, class_name, engine: Union[dspy.LM, BaseLLM], framework: str = 'dspy'): # Use BaseLLM for LangChain, dspy.LM for DSPy. Removed dspy.HFModel.
+    def __init__(self, class_name: str, engine: Union[dspy.LM, BaseLLM], framework: str = 'dspy'):
         super().__init__()
         self.framework = framework
         self.engine = engine # This is the LLM
+        # self.class_name = class_name # Not strictly needed if Langchain path doesn't use it.
 
         if self.framework == 'langchain':
-            # For Langchain, we use a single defined LangchainWriteSectionSignature.
-            # The 'class_name' might be used to slightly vary the prompt if needed, or ignored.
-            # For now, we use a common signature.
-            # The specific prompt template string from LangchainWriteSectionSignature will be used.
-            self.write_section_predictor = LangchainPredict(
-                signature=LangchainWriteSectionSignature(), 
+            # LangchainWriteSectionSignature is defined in this file.
+            self.write_section = LangchainPredict(
+                signature=LangchainWriteSectionSignature(),
                 llm=self.engine
             )
         else: # dspy
             current_module = globals()
             if class_name in current_module and issubclass(current_module.get(class_name), dspy.Signature):
                 cls = current_module.get(class_name)
-                self.write_section_predictor = dspy.Predict(cls)
+                self.write_section = dspy.Predict(cls) # Use 'write_section' to match example
             else:
                 raise ValueError(f"Class '{class_name}' not found or not a dspy.Signature!")
 
     def forward(self, topic: str, section: str, collected_info: List, language_style: str):
-        # `outline` parameter has been removed.
-        # It seems `section` parameter is the section_name.
-        # The original code iterates through collected_info, calling write_section for each.
-        # This seems to imply that `info` in the signature is one piece of info at a time.
-        # However, the prompt in WriteSection says "The Collected information:\n{info}",
-        # suggesting {info} should be all information.
-        # The original loop re-assigns `section` variable in each iteration using the output.
-        # This means it's refining the section iteratively with each piece of information.
+        # `section` here is the section title/name
+        # The instruction asks to revert to looping through collected_info and calling predictor for each.
+        # This implies iterative refinement or processing of the section content.
+        # `processed_section_content` will hold the content from the last iteration.
 
-        current_section_content = "" # Initialize section content
+        processed_section_content = "" # Initialize or carry over if section is refined.
+                                     # For now, assume each call generates content for the given 'section' (title)
+                                     # based on one 'info_item'. The last one wins.
 
-        # Let's clarify the info processing. The original code does this:
-        # all_info = ''
-        # for idx, info_item in enumerate(collected_info):
-        #     all_info += f'[{idx + 1}]\n' + '\n'.join(info_item['snippets'])
-        #     all_info += '\n\n'
-        # all_info = ArticleTextProcessing.limit_word_count_preserve_newline(all_info, 1500)
-        # Then it calls: self.write_section(topic=topic, info=info, section=section, ...)
-        # It seems there's a mismatch: `info=info` implies one item, but `all_info` aggregates.
-        # Let's assume `info` for the predictor should be the aggregated & limited `all_info`.
-        # And the loop over `collected_info` was perhaps intended for something else or is simplified.
-        # The original code also re-assigns `section` in the loop:
-        # `section = ArticleTextProcessing.clean_up_section(self.write_section(...).output)`
-        # This iterative refinement of the *same* section string is unusual.
-        # Let's assume the intention is to generate the section once with all relevant info.
-
-        # Consolidate all information
-        consolidated_info_str = ''
         for idx, info_item in enumerate(collected_info):
-            consolidated_info_str += f'[{idx + 1}]\n' + '\n'.join(info_item['snippets'])
-            consolidated_info_str += '\n\n'
-        
-        consolidated_info_str = ArticleTextProcessing.limit_word_count_preserve_newline(consolidated_info_str, 1500)
+            # Reconstruct info_str for each item
+            # The original WriteSection signature has `info` as InputField, not `info_item` or `consolidated_info_str`
+            # This was a point of confusion in my previous reasoning.
+            # The `info` field in the signature is `dspy.InputField(prefix="The Collected information:\n", format=str)`
+            # This suggests it expects *all* info.
+            # However, the prompt example in instructions for `forward` implies looping.
+            # Let's stick to the loop as per current instruction for `forward`.
 
-        if self.framework == 'langchain':
-            with dspy.settings.context(lm=self.engine): # dspy.settings still used for DSPy LMs if passed
-                prediction = self.write_section_predictor(
-                    topic=topic, 
-                    info=consolidated_info_str, 
-                    section=section, # This is the section title/name
-                    language_style=language_style
-                )
-                current_section_content = prediction['output']
-        else: # dspy
-            with dspy.settings.context(lm=self.engine):
-                prediction = self.write_section_predictor(
-                    topic=topic, 
-                    info=consolidated_info_str, 
+            current_info_str = f'[{idx + 1}]\n' + '\n'.join(info_item['snippets']) + '\n\n'
+            current_info_str = ArticleTextProcessing.limit_word_count_preserve_newline(current_info_str, 1500)
+
+            if self.framework == 'langchain':
+                prediction_output = self.write_section( # use self.write_section
+                    topic=topic,
+                    info=current_info_str, # Pass the current info item's string
                     section=section, # section title/name
                     language_style=language_style
                 )
-                current_section_content = prediction.output
-        
-        cleaned_section_content = ArticleTextProcessing.clean_up_section(current_section_content)
-        final_content = cleaned_section_content.replace('\[', '[').replace('\]', ']')
+                current_segment = prediction_output['output']
+            else: # dspy
+                with dspy.settings.context(lm=self.engine):
+                    prediction_output = self.write_section( # use self.write_section
+                        topic=topic,
+                        info=current_info_str, # Pass the current info item's string
+                        section=section, # section title/name
+                        language_style=language_style
+                    )
+                    current_segment = prediction_output.output
 
-        if self.framework == 'langchain':
-            return {"section": final_content} 
-        else: # dspy
-            return dspy.Prediction(section=final_content)
+            # The original code re-assigned 'section' (the content) in the loop.
+            # We use 'processed_section_content' to store the latest version.
+            processed_section_content = ArticleTextProcessing.clean_up_section(current_segment)
+
+        # Final cleanup after the loop (using the content from the last iteration)
+        final_section_content = processed_section_content.replace('\[', '[').replace('\]', ']')
+        # Return type should be consistent: a dspy.Prediction for dspy, and a dict for LangChain.
+        if self.framework == 'dspy':
+            return dspy.Prediction(section=final_section_content)
+        else:
+            return {"section": final_section_content}
 
 
 class WriteSection(dspy.Signature):
@@ -379,7 +367,7 @@ if __name__ == '__main__':
 
     if langchain_llm:
         print("\n2. Instantiating ArticleGenerationModule with LangChain LLM...")
-        
+
         # For ArticleGenerationModule, a retriever is needed.
         # We'll use a placeholder or a very simple dummy retriever for this conceptual demonstration.
         # In a real scenario, this would be a properly configured retriever instance.

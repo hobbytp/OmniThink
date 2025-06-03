@@ -10,13 +10,13 @@ class TestLangchainSignature(unittest.TestCase):
         input_fields = ["question", "context"]
         output_fields = ["answer"]
         prompt_template_str = "Q: {question} C: {context} A:"
-        
+
         sig = LangchainSignature(
             input_fields=input_fields,
             output_fields=output_fields,
             prompt_template_str=prompt_template_str
         )
-        
+
         self.assertEqual(sig.input_fields, input_fields)
         self.assertEqual(sig.output_fields, output_fields)
         self.assertEqual(sig.prompt_template_str, prompt_template_str)
@@ -56,7 +56,7 @@ class TestLangchainPredict(unittest.TestCase):
     def test_init_invalid_llm(self):
         with self.assertRaises(ValueError):
             LangchainPredict(signature=self.sig_single_output, llm="not an llm")
-            
+
     def test_init_no_prompt_template(self):
         sig_no_prompt = LangchainSignature(input_fields=["in"], output_fields=["out"])
         with self.assertRaises(ValueError):
@@ -66,9 +66,9 @@ class TestLangchainPredict(unittest.TestCase):
         responses = ["Test answer"]
         llm = FakeListLLM(responses=responses)
         predictor = LangchainPredict(signature=self.sig_single_output, llm=llm)
-        
+
         result = predictor(query="What is testing?")
-        
+
         self.assertIn("result", result)
         self.assertEqual(result["result"], responses[0])
 
@@ -77,10 +77,10 @@ class TestLangchainPredict(unittest.TestCase):
         # Our FakeListLLM returns strings directly, which LLMChain wraps.
         responses = ["Test answer from dict path"]
         llm = FakeListLLM(responses=responses) # FakeListLLM makes LLMChain return {'text': 'response'}
-        
+
         predictor = LangchainPredict(signature=self.sig_single_output, llm=llm)
         result = predictor(query="What is testing?")
-        
+
         self.assertIn("result", result)
         # The LLMChain with FakeListLLM will output a dict: {'text': "Test answer from dict path"}
         # Our LangchainPredict.__call__ should extract this.
@@ -91,9 +91,9 @@ class TestLangchainPredict(unittest.TestCase):
         responses = ["This is a title and summary combined."]
         llm = FakeListLLM(responses=responses)
         predictor = LangchainPredict(signature=self.sig_multi_output, llm=llm)
-        
+
         result = predictor(document="Some long document.")
-        
+
         self.assertIn("title", result)
         self.assertIn("summary", result)
         self.assertEqual(result["title"], responses[0]) # First output field gets the string
@@ -106,13 +106,13 @@ class TestLangchainPredict(unittest.TestCase):
         # For now, we acknowledge this based on the implementation: if raw_prediction is a dict
         # with matching keys, they will be used.
         # Let's simulate chain returning a dict with correct keys
-        
+
         mock_chain = MagicMock()
         mock_chain.invoke = MagicMock(return_value={"title": "Test Title", "summary": "Test Summary"})
-        
+
         predictor = LangchainPredict(signature=self.sig_multi_output, llm=self.fake_llm)
         predictor.chain = mock_chain # Override the chain with our mock
-        
+
         result = predictor(document="Some long document.")
         self.assertEqual(result["title"], "Test Title")
         self.assertEqual(result["summary"], "Test Summary")
@@ -121,7 +121,7 @@ class TestLangchainPredict(unittest.TestCase):
         # Simulate LLMChain returning {'text': 'some string'} when multiple outputs are expected
         responses = ["Title and summary in one string"]
         llm = FakeListLLM(responses=responses) # This will lead to {'text': responses[0]}
-        
+
         predictor = LangchainPredict(signature=self.sig_multi_output, llm=llm)
         result = predictor(document="Test doc")
 
@@ -152,7 +152,7 @@ class TestLangchainModule(unittest.TestCase):
 
         def forward(self, x: int) -> int:
             return x * 2 + self.some_value
-            
+
         def another_method(self, y:int) -> int:
             if self.llm: # Just to use self.llm
                 return y + 1

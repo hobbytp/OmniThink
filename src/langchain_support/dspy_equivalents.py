@@ -24,7 +24,7 @@ class LangchainModule(ABC):
     """
     def __init__(self, llm: Optional[BaseLLM] = None, **kwargs):
         """
-        Initializes the module, optionally storing a LangChain LLM 
+        Initializes the module, optionally storing a LangChain LLM
         or other configurations.
         """
         self.llm = llm
@@ -81,7 +81,7 @@ class LangchainPredict:
         Args:
             signature: A LangchainSignature object defining inputs/outputs.
             llm: A LangChain BaseLLM instance.
-            prompt_template_str: Optional. A string defining the prompt template. 
+            prompt_template_str: Optional. A string defining the prompt template.
                                  If None, uses the one from the signature.
         """
         if not isinstance(signature, LangchainSignature):
@@ -91,7 +91,7 @@ class LangchainPredict:
 
         self.signature = signature
         self.llm = llm
-        
+
         template_str_to_use = prompt_template_str if prompt_template_str is not None else self.signature.prompt_template_str
 
         if not template_str_to_use:
@@ -101,7 +101,7 @@ class LangchainPredict:
             template=template_str_to_use,
             input_variables=self.signature.input_fields
         )
-        
+
         self.chain = LLMChain(llm=self.llm, prompt=self.prompt_template)
 
     def __call__(self, **kwargs) -> Dict[str, Any]:
@@ -119,7 +119,7 @@ class LangchainPredict:
         for field in self.signature.input_fields:
             if field not in kwargs:
                 raise ValueError(f"Missing input field '{field}' for signature {self.signature}")
-        
+
         # Execute the chain
         # LLMChain.invoke returns a dictionary, typically with a 'text' key for the output.
         # For older versions, chain.run(**kwargs) or chain.predict(**kwargs) might be used,
@@ -142,7 +142,7 @@ class LangchainPredict:
                 elif raw_prediction: # Fallback to the first value in the dict
                     output_dict[output_field_name] = next(iter(raw_prediction.values()))
                 else: # Should not happen if LLM produced output
-                    output_dict[output_field_name] = "" 
+                    output_dict[output_field_name] = ""
             else: # Multiple output fields
                 # If 'text' is in raw_prediction and we have output fields,
                 # assign it to the first output field as a default behavior.
@@ -151,7 +151,7 @@ class LangchainPredict:
                 if 'text' in raw_prediction and self.signature.output_fields:
                     output_dict[self.signature.output_fields[0]] = raw_prediction['text']
                     assigned_first_field = True
-                
+
                 # For other fields (or all if 'text' wasn't used for the first one),
                 # try to get them by name from raw_prediction.
                 for i, field in enumerate(self.signature.output_fields):
@@ -206,7 +206,7 @@ if __name__ == '__main__':
     print(f"Signature created: {sig}")
 
     print("\n--- Test LangchainPredict (with mocked LangChain components) ---")
-    
+
     # Scenario 1: Prompt template in signature
     try:
         predict_with_sig_template = LangchainPredict(signature=sig, llm=mock_llm)
@@ -214,11 +214,11 @@ if __name__ == '__main__':
         # The FakeListLLM will cycle through responses. Let's ensure we match the first one.
         # To reset FakeListLLM's internal state for each test, we might need to re-initialize it,
         # or manage its responses carefully. For simplicity, we'll use one LLM instance and track responses.
-        
+
         prediction = predict_with_sig_template(question="What is DSPy?", context="DSPy is a framework.")
         print(f"Prediction (template from signature): {prediction}")
         assert "answer" in prediction
-        assert "Mocked LLM response" in prediction["answer"] 
+        assert "Mocked LLM response" in prediction["answer"]
         assert "What is DSPy?" in prediction["answer"] # Prompt content should be in the fake response
     except Exception as e:
         print(f"Error in LangchainPredict Scenario 1: {e}")
@@ -273,7 +273,7 @@ if __name__ == '__main__':
         # Let's assume FakeListLLM + LLMChain results in {'text': 'response_string'}
         # The mock_llm_responses[2] is "{\"title\": \"Test Doc Title\", \"keywords\": \"AI, Python, Test\"}"
         # So, prediction_multi['title'] should get this full string.
-        assert "Test Doc Title" in prediction_multi["title"] 
+        assert "Test Doc Title" in prediction_multi["title"]
         assert prediction_multi["keywords"] == "" # Second field gets empty string with current simple handling
     except Exception as e:
         print(f"Error in LangchainPredict Scenario 3: {e}")
@@ -308,7 +308,7 @@ if __name__ == '__main__':
     ])
     qa_module = MyQuestionAnsweringModule(llm=module_mock_llm)
     print("MyQuestionAnsweringModule created.")
-    
+
     try:
         module_answer = qa_module.forward(question="What is the capital of France?", context="France is a country in Europe.")
         print(f"Module's answer: {module_answer}")
@@ -324,5 +324,5 @@ if __name__ == '__main__':
     except Exception as e:
         print(f"Error in LangchainModule __call__ test: {e}")
         raise
-    
+
     print("\n--- All tests run, using mocked LangChain components ---")

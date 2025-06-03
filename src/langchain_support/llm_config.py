@@ -9,7 +9,7 @@ from langchain.llms.fake import FakeListLLM
 try:
     from langchain_openai import ChatOpenAI
 except ImportError:
-    ChatOpenAI = None 
+    ChatOpenAI = None
 
 try:
     from langchain_community.llms import HuggingFaceHub # Or from langchain.llms for older versions
@@ -26,8 +26,8 @@ DEFAULT_FAKE_RESPONSES = [
 ]
 
 def get_langchain_llm(
-    provider: str, 
-    api_key: Optional[str] = None, 
+    provider: str,
+    api_key: Optional[str] = None,
     model_name: Optional[str] = None,
     responses: Optional[List[str]] = None, # Specific to FakeListLLM
     **kwargs: Any
@@ -54,15 +54,15 @@ def get_langchain_llm(
     if provider == 'openai':
         if ChatOpenAI is None:
             raise ImportError("langchain-openai package not found. Please install it via `pip install langchain-openai`.")
-        
+
         openai_api_key = api_key if api_key else os.getenv("OPENAI_API_KEY")
         if not openai_api_key:
             raise ValueError("OpenAI API key not provided and not found in OPENAI_API_KEY environment variable.")
-        
+
         # Common model names: "gpt-3.5-turbo", "gpt-4", etc.
         # Default to a common one if not specified
         model_to_use = model_name if model_name else "gpt-3.5-turbo"
-        
+
         return ChatOpenAI(model_name=model_to_use, openai_api_key=openai_api_key, **kwargs)
 
     elif provider == 'huggingface':
@@ -72,11 +72,11 @@ def get_langchain_llm(
         hf_api_token = api_key if api_key else os.getenv("HUGGINGFACEHUB_API_TOKEN")
         if not hf_api_token:
             raise ValueError("Hugging Face API token not provided and not found in HUGGINGFACEHUB_API_TOKEN environment variable.")
-        
+
         if not model_name:
             raise ValueError("model_name (Hugging Face Hub repository ID) must be provided for HuggingFaceHub.")
         # Example model_name: "google/flan-t5-large"
-        
+
         return HuggingFaceHub(repo_id=model_name, huggingfacehub_api_token=hf_api_token, **kwargs)
 
     elif provider == 'fake':
@@ -135,5 +135,5 @@ if __name__ == '__main__':
             print(f"Error testing HuggingFaceHub: {e}")
     else:
         print("Skipping HuggingFaceHub test as HUGGINGFACEHUB_API_TOKEN environment variable is not set.")
-    
+
     print("\n--- LLM Configuration Utility Testing Done ---")

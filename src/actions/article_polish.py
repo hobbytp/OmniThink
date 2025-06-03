@@ -21,7 +21,7 @@ class ArticlePolishingModule():
         self.article_polish_lm = article_polish_lm
         self.framework = framework
 
-        self.polish_page_module = PolishPageModule( 
+        self.polish_page_module = PolishPageModule(
             # write_lead_engine parameter removed from PolishPageModule
             polish_engine=self.article_polish_lm,
             framework=self.framework
@@ -42,11 +42,11 @@ class ArticlePolishingModule():
 
         article_text = draft_article.to_string()
         # remove_duplicate = True # This was hardcoded, let's use the parameter
-        
+
         # polish_page_module returns a dict for langchain, dspy.Prediction for dspy
         polish_result_pred = self.polish_page_module(
             topic=topic, # Passed to forward, though not used by current PolishPageSignature
-            draft_page=article_text, 
+            draft_page=article_text,
             polish_whole_page=remove_duplicate
         )
 
@@ -85,7 +85,7 @@ class PolishPage(dspy.Signature):
 
 
 class PolishPageModule(dspy.Module): # Can also be LangchainModule
-    def __init__(self, 
+    def __init__(self,
                  # write_lead_engine: Union[dspy.LM, BaseLLM], # Removed as it was unused
                  polish_engine: Union[dspy.LM, BaseLLM], # Use BaseLLM for LangChain, dspy.LM for DSPy. Removed dspy.HFModel.
                  framework: str = 'dspy'):
@@ -106,7 +106,7 @@ class PolishPageModule(dspy.Module): # Can also be LangchainModule
         # topic and polish_whole_page are not used by the dspy.PolishPage signature
         # or the LangchainPolishPageSignature as defined (which matches PolishPage).
         # They are kept in the method signature for interface consistency with ArticlePolishingModule.
-        
+
         if self.framework == 'langchain':
             # dspy.settings.context might not be relevant for LangChain LLMs
             # Assuming self.polish_engine is a LangChain LLM here.

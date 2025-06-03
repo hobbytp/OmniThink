@@ -14,7 +14,7 @@ from langchain_core.language_models.llms import BaseLLM # Added for type hinting
 class OutlineGenerationModule():
 
     def __init__(self,
-                 outline_gen_lm: Union[dspy.LM, BaseLLM], # Use BaseLLM for LangChain, dspy.LM for DSPy. Removed dspy.HFModel.
+                 outline_gen_lm: Union[dspy.LM, BaseLLM],
                  framework: str = 'dspy'):
         super().__init__()
         self.outline_gen_lm = outline_gen_lm
@@ -23,7 +23,7 @@ class OutlineGenerationModule():
 
     def generate_outline(self,
                          topic: str,
-                         mindmap: MindMap, 
+                         mindmap: MindMap,
                          ):
 
         concepts = mindmap.export_categories_and_concepts()
@@ -69,53 +69,43 @@ Write the page outline:
 """
         )
 
-class WriteOutline(dspy.Module): # Can also be LangchainModule
+class WriteOutline(dspy.Module):
     """Generate the outline for the Wikipedia page."""
 
-    def __init__(self, engine: Union[dspy.LM, BaseLLM], framework: str = 'dspy'): # Use BaseLLM for LangChain, dspy.LM for DSPy. Removed dspy.HFModel.
+    def __init__(self, engine: Union[dspy.LM, BaseLLM], framework: str = 'dspy'):
         super().__init__()
         self.engine = engine
         self.framework = framework
 
         if self.framework == 'langchain':
-            self.draft_page_outline_predictor = LangchainPredict(
+            self.draft_page_outline = LangchainPredict(
                 signature=LangchainWritePageOutlineSignature(),
                 llm=self.engine
             )
-            self.polish_page_outline_predictor = LangchainPredict(
+            self.polish_page_outline = LangchainPredict(
                 signature=LangchainPolishPageOutlineSignature(),
                 llm=self.engine
             )
         else: # dspy
-            self.draft_page_outline_predictor = dspy.Predict(WritePageOutline)
-            self.polish_page_outline_predictor = dspy.Predict(PolishPageOutline)
+            self.draft_page_outline = dspy.Predict(WritePageOutline)
+            self.polish_page_outline = dspy.Predict(PolishPageOutline)
 
     def forward(self, topic: str, concepts: str):
-        draft_outline_text = ""
-        polished_outline_text = ""
-
         if self.framework == 'langchain':
-            # Assuming engine is LangChain compatible if framework is 'langchain'
-            # No explicit dspy.settings.context(lm=self.engine) needed for LangChainPredict
-            draft_prediction = self.draft_page_outline_predictor(topic=topic)
-            draft_outline_text = draft_prediction['outline']
-            
-            cleaned_draft_outline = ArticleTextProcessing.clean_up_outline(draft_outline_text)
-            
-            polish_prediction = self.polish_page_outline_predictor(draft=cleaned_draft_outline, concepts=concepts)
-            polished_outline_text = polish_prediction['outline']
-            
+            draft_pred = self.draft_page_outline(topic=topic)
+            cleaned_draft_outline = ArticleTextProcessing.clean_up_outline(draft_pred['outline'])
+
+            polished_pred = self.polish_page_outline(draft=cleaned_draft_outline, concepts=concepts)
+            final_outline = ArticleTextProcessing.clean_up_outline(polished_pred['outline'])
+
         else: # dspy
             with dspy.settings.context(lm=self.engine):
-                draft_prediction = self.draft_page_outline_predictor(topic=topic)
-                draft_outline_text = draft_prediction.outline
+                draft_pred = self.draft_page_outline(topic=topic)
+                cleaned_draft_outline = ArticleTextProcessing.clean_up_outline(draft_pred.outline)
 
-                cleaned_draft_outline = ArticleTextProcessing.clean_up_outline(draft_outline_text)
+                polished_pred = self.polish_page_outline(draft=cleaned_draft_outline, concepts=concepts)
+                final_outline = ArticleTextProcessing.clean_up_outline(polished_pred.outline)
 
-                polish_prediction = self.polish_page_outline_predictor(draft=cleaned_draft_outline, concepts=concepts)
-                polished_outline_text = polish_prediction.outline
-
-        final_outline = ArticleTextProcessing.clean_up_outline(polished_outline_text)
         return final_outline
 
 

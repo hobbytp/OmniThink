@@ -11,5 +11,3 @@ from .dspy.rm import *
 # To specifically control what's exported and avoid wildcard imports:
 # from .dspy.mindmap import MindMap # Example if MindMap is the only thing needed from there
 # from .dspy.lm import SomeLM # Example
-
-# For now, using wildcard to match original attempt, but pointing to dspy submodule.
