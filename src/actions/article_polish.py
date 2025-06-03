@@ -13,16 +13,15 @@ class ArticlePolishingModule():
     """
 
     def __init__(self,
-                 article_gen_lm: Union[dspy.dsp.LM, dspy.dsp.HFModel], # Retained for potential future use, not directly used by PolishPageModule
+                 # article_gen_lm: Union[dspy.dsp.LM, dspy.dsp.HFModel], # Removed as it was unused
                  article_polish_lm: Union[dspy.dsp.LM, dspy.dsp.HFModel], # This is the one used
                  framework: str = 'dspy'):
-        self.article_gen_lm = article_gen_lm 
+        # self.article_gen_lm = article_gen_lm # Removed
         self.article_polish_lm = article_polish_lm
         self.framework = framework
 
-        self.polish_page_module = PolishPageModule( # Renamed to avoid confusion with 'page' field
-            # write_lead_engine is not used in PolishPageModule's current forward method, but kept for signature consistency
-            write_lead_engine=self.article_gen_lm, 
+        self.polish_page_module = PolishPageModule( 
+            # write_lead_engine parameter removed from PolishPageModule
             polish_engine=self.article_polish_lm,
             framework=self.framework
         )
@@ -86,11 +85,11 @@ class PolishPage(dspy.Signature):
 
 class PolishPageModule(dspy.Module): # Can also be LangchainModule
     def __init__(self, 
-                 write_lead_engine: Union[dspy.dsp.LM, dspy.dsp.HFModel], # Not used in current forward
+                 # write_lead_engine: Union[dspy.dsp.LM, dspy.dsp.HFModel], # Removed as it was unused
                  polish_engine: Union[dspy.dsp.LM, dspy.dsp.HFModel],
                  framework: str = 'dspy'):
         super().__init__()
-        self.write_lead_engine = write_lead_engine
+        # self.write_lead_engine = write_lead_engine # Removed
         self.polish_engine = polish_engine
         self.framework = framework
 

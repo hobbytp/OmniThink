@@ -60,65 +60,29 @@ class MockMindMap:
         return self.retrieve_info_results
 
     def prepare_table_for_retrieval(self): # Called in generate_article
-        pass
+        # This method will be a MagicMock instance if not defined, or we can define it explicitly
+        pass # If we need to assert it was called, assign MagicMock() in __init__
 
 
 # Mock for ArticleWithOutline (or similar object used in generate_article)
+# Updated to use MagicMock for easier testing of interactions
 class MockArticleWithOutline:
-    def __init__(self, sections=None, outline_list=None):
-        self.sections = sections if sections else ["Introduction", "Body", "Conclusion"]
-        self.outline_list = outline_list if outline_list else ["# Introduction", "## Point 1"]
-        self.content_dict = {} # To store updated sections
+    def __init__(self):
+        self.get_first_level_section_names = MagicMock(return_value=[])
+        self.get_outline_as_list = MagicMock(return_value="")
+        self.update_section = MagicMock()
+        self.post_processing = MagicMock()
+        # Make it behave like a deepcopyable object if needed for the test
+        # self.__deepcopy__ is a special method name, ensure it's handled correctly by mock
+        # A common way is to have deepcopy return the same instance for mocks
+        self.mock_deepcopy = MagicMock(return_value=self)
 
-    def get_first_level_section_names(self):
-        return self.sections
-
-    def get_outline_as_list(self, root_section_name, add_hashtags):
-        return self.outline_list # Simplified
-
-    def update_section(self, parent_section_name, current_section_content, current_section_info_list):
-        # Store the generated content for verification
-        self.content_dict[parent_section_name] = { # Assuming parent_section_name is like the overall topic for the whole article
-            "content": current_section_content,     # and current_section_content is one whole section's text
-            "info_list": current_section_info_list
-        }
-        # In reality, this method would update a more complex internal structure.
-        # For testing generate_section, this might not be directly hit if we test section_gen output.
-        # For testing generate_article, this is important.
-        # The actual StormArticle.update_section seems to update based on section title within current_section_content
-        # For simplicity here, we'll just store the whole text blob.
-        if parent_section_name not in self.content_dict:
-             self.content_dict[parent_section_name] = {} # Initialize if not present
-        # A bit of a simplification: store based on the main topic, assuming one section content blob for now
-        # Or, more accurately, the generate_article loop calls update_section for each section_title
-        # So parent_section_name there is the *topic*, and current_section_content is the *content of one first-level section*.
-        # The original code has `article.update_section(parent_section_name=topic, ...)` which is a bit confusing.
-        # Let's assume `parent_section_name` in `update_section` refers to the section title being updated.
-        # This is a detail of StormArticle, for our test, we just need to see it's called.
-        # The key for `section_output_dict` is `section_name`.
-        # `article.update_section(parent_section_name=section_output_dict["section_name"], ...)` might be more accurate.
-        # However, the original code in ArticleGenerationModule.generate_article passes `topic` as `parent_section_name`.
-        # This suggests StormArticle's `update_section` might be more nuanced.
-        # For testing, the important part is that `current_section_content` is passed.
-        # Let's refine this mock if direct testing of generate_article's effect on the article object is needed.
-        # For now, let's assume `generate_section` is tested more directly.
-        
-        # A simple way to track:
-        if not hasattr(self, 'updated_sections_content'):
-            self.updated_sections_content = {}
-        # The key in `section_output_dict_collection` is based on the section title.
-        # `current_section_content` is the actual text.
-        # The original `update_section` might be using the section title from *within* `current_section_content`.
-        # We'll just store the raw content by the first section title for simplicity.
-        first_title_in_content = current_section_content.split('\n')[0].lstrip('# ').strip()
-        self.updated_sections_content[first_title_in_content] = current_section_content
-
-
-    def post_processing(self):
-        pass
+    def __deepcopy__(self, memo):
+        # Ensure it returns the mock itself, helpful for copy.deepcopy in the code under test
+        return self.mock_deepcopy(memo)
     
-    def to_string(self): # If needed by polish module
-        return "\n".join(self.updated_sections_content.values())
+    def to_string(self): # If needed by any part of the code under test
+        return "Mocked article content"
 
 
 class TestConvToSection(unittest.TestCase):
@@ -149,7 +113,7 @@ class TestConvToSection(unittest.TestCase):
         
         result = conv_module.forward(
             topic="Test Topic", 
-            outline="# Test Outline", 
+            # outline="# Test Outline", # Parameter removed
             section="Test Section Title", 
             collected_info=collected_info_list, 
             language_style="formal"
@@ -165,7 +129,7 @@ class TestConvToSection(unittest.TestCase):
         
         result = conv_module.forward(
             topic="LC Topic", 
-            outline="# LC Outline", 
+            # outline="# LC Outline", # Parameter removed
             section="LC Section Title", 
             collected_info=collected_info_list, 
             language_style="enthusiastic"
@@ -178,8 +142,13 @@ class TestConvToSection(unittest.TestCase):
 class TestArticleGenerationModule(unittest.TestCase):
     def setUp(self):
         self.mock_retriever = MockRetriever()
+        # For generate_article tests, ensure MockMindMap has prepare_table_for_retrieval as a MagicMock
         self.mock_mindmap = MockMindMap()
-        self.mock_article_outline = MockArticleWithOutline()
+        self.mock_mindmap.prepare_table_for_retrieval = MagicMock()
+        
+        # Use the MagicMock version of MockArticleWithOutline for generate_article tests
+        self.mock_article_with_outline_magic = MockArticleWithOutline()
+
 
     def test_init_dspy(self):
         mock_dspy_lm = MockDSPyLM()
@@ -242,6 +211,117 @@ class TestArticleGenerationModule(unittest.TestCase):
     # To test generate_article, we would need to ensure the ThreadPoolExecutor works as expected
     # and that the MockArticleWithOutline correctly accumulates results.
     # For now, focusing on generate_section demonstrates the core LangChain integration.
+
+    def _run_generate_article_orchestration_test(self, framework_name, llm_instance):
+        module = ArticleGenerationModule(
+            retriever=self.mock_retriever,
+            article_gen_lm=llm_instance,
+            framework=framework_name
+        )
+
+        # Mock what generate_section would return
+        module.generate_section = MagicMock(side_effect=[
+            {"section_name": "Section 1", "section_content": "Content for S1", "collected_info": ["info1"]},
+            {"section_name": "Section 2", "section_content": "Content for S2", "collected_info": ["info2"]},
+        ])
+        
+        self.mock_article_with_outline_magic.get_first_level_section_names.return_value = ['Section 1', 'Section 2']
+        self.mock_article_with_outline_magic.get_outline_as_list.return_value = ["# Section 1 outline", "## Subsection"]
+
+        with patch('concurrent.futures.ThreadPoolExecutor') as mock_executor_class:
+            mock_executor_instance = MagicMock()
+            mock_executor_class.return_value.__enter__.return_value = mock_executor_instance
+
+            # Make submit execute the function immediately and return a future with the result
+            from concurrent.futures import Future
+            def mock_submit(fn, *args, **kwargs):
+                future = Future()
+                try:
+                    result = fn(*args, **kwargs)
+                    future.set_result(result)
+                except Exception as e:
+                    future.set_exception(e)
+                return future
+            mock_executor_instance.submit.side_effect = mock_submit
+
+            returned_article = module.generate_article(
+                topic="Test Topic",
+                mindmap=self.mock_mindmap,
+                article_with_outline=self.mock_article_with_outline_magic,
+                language_style={"style": "formal", "language_type": "English"}
+            )
+
+        self.mock_mindmap.prepare_table_for_retrieval.assert_called_once()
+        self.assertEqual(module.generate_section.call_count, 2)
+        
+        # Check calls to generate_section
+        expected_generate_section_calls = [
+            unittest.mock.call(
+                "Test Topic", "Section 1", self.mock_mindmap, ["# Section 1 outline", "## Subsection"], 
+                "# Section 1 outline\n## Subsection", "formal English\n" 
+            ),
+            unittest.mock.call(
+                "Test Topic", "Section 2", self.mock_mindmap, ["# Section 1 outline", "## Subsection"], 
+                "# Section 1 outline\n## Subsection", "formal English\n"
+            ),
+        ]
+        # Note: The query and outline passed to generate_section are identical for all sections in this mock setup of get_outline_as_list.
+        # This might differ in real usage if get_outline_as_list is more dynamic.
+        # For the test, we assert based on the mocked behavior.
+        module.generate_section.assert_has_calls(expected_generate_section_calls, any_order=False)
+
+
+        self.assertEqual(self.mock_article_with_outline_magic.update_section.call_count, 2)
+        expected_update_calls = [
+            unittest.mock.call(parent_section_name="Test Topic", current_section_content="Content for S1", current_section_info_list=["info1"]),
+            unittest.mock.call(parent_section_name="Test Topic", current_section_content="Content for S2", current_section_info_list=["info2"]),
+        ]
+        self.mock_article_with_outline_magic.update_section.assert_has_calls(expected_update_calls, any_order=True) # Order can vary due to ThreadPool completion
+
+        self.mock_article_with_outline_magic.post_processing.assert_called_once()
+        self.assertEqual(returned_article, self.mock_article_with_outline_magic.mock_deepcopy.return_value)
+
+
+    def test_generate_article_orchestration_dspy(self):
+        mock_dspy_lm = MockDSPyLM()
+        dspy.settings.configure(lm=mock_dspy_lm) # Configure for DSPy path if generate_section was not mocked
+        self._run_generate_article_orchestration_test(framework_name='dspy', llm_instance=mock_dspy_lm)
+
+    def test_generate_article_orchestration_langchain(self):
+        fake_lc_llm = FakeListLLM(responses=["s1 content", "s2 content"]) # Responses for ConvToSection if generate_section not mocked
+        self._run_generate_article_orchestration_test(framework_name='langchain', llm_instance=fake_lc_llm)
+
+
+    def _run_generate_article_empty_sections_test(self, framework_name, llm_instance):
+        module = ArticleGenerationModule(
+            retriever=self.mock_retriever,
+            article_gen_lm=llm_instance,
+            framework=framework_name
+        )
+        module.generate_section = MagicMock() # Ensure it's not called
+
+        self.mock_article_with_outline_magic.get_first_level_section_names.return_value = [] # No sections
+
+        returned_article = module.generate_article(
+            topic="Empty Topic",
+            mindmap=self.mock_mindmap,
+            article_with_outline=self.mock_article_with_outline_magic
+        )
+
+        self.mock_mindmap.prepare_table_for_retrieval.assert_called_once()
+        module.generate_section.assert_not_called()
+        self.mock_article_with_outline_magic.update_section.assert_not_called()
+        self.mock_article_with_outline_magic.post_processing.assert_called_once()
+        self.assertEqual(returned_article, self.mock_article_with_outline_magic.mock_deepcopy.return_value)
+
+    def test_generate_article_empty_sections_dspy(self):
+        mock_dspy_lm = MockDSPyLM()
+        self._run_generate_article_empty_sections_test(framework_name='dspy', llm_instance=mock_dspy_lm)
+
+    def test_generate_article_empty_sections_langchain(self):
+        fake_lc_llm = FakeListLLM(responses=[])
+        self._run_generate_article_empty_sections_test(framework_name='langchain', llm_instance=fake_lc_llm)
+
 
 if __name__ == '__main__':
     unittest.main()

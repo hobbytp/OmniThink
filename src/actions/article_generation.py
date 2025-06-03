@@ -42,7 +42,7 @@ class ArticleGenerationModule():
         # ConvToSection's output will be a dspy.Prediction or dict based on framework
         output_pred = self.section_gen(
             topic=topic,
-            outline=section_outline, # outline is not directly used by ConvToSection's forward, but passed
+            # outline=section_outline, # outline parameter removed from ConvToSection.forward
             section=section_name,
             collected_info=collected_info,
             language_style=language_style,
@@ -150,9 +150,9 @@ class ConvToSection(dspy.Module): # Can also be LangchainModule if we refactor f
             else:
                 raise ValueError(f"Class '{class_name}' not found or not a dspy.Signature!")
 
-    def forward(self, topic: str, outline: str, section: str, collected_info: List, language_style: str):
-        # `outline` is passed but not directly used in the core loop here, matching original logic.
-        # It seems `section` parameter is the section_name, and `outline` is section_outline.
+    def forward(self, topic: str, section: str, collected_info: List, language_style: str):
+        # `outline` parameter has been removed.
+        # It seems `section` parameter is the section_name.
         # The original code iterates through collected_info, calling write_section for each.
         # This seems to imply that `info` in the signature is one piece of info at a time.
         # However, the prompt in WriteSection says "The Collected information:\n{info}",

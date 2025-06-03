@@ -54,7 +54,7 @@ class TestPolishPageModule(unittest.TestCase):
         mock_dspy_lm = MockDSPyLM()
         # PolishPage is a class in article_polish, so it should be found.
         polish_module = PolishPageModule(
-            write_lead_engine=mock_dspy_lm, # Not used by forward but required by init
+            # write_lead_engine parameter removed
             polish_engine=mock_dspy_lm, 
             framework='dspy'
         )
@@ -64,7 +64,7 @@ class TestPolishPageModule(unittest.TestCase):
     def test_init_langchain(self):
         fake_lc_llm = FakeListLLM(responses=["lc polish response"])
         polish_module = PolishPageModule(
-            write_lead_engine=fake_lc_llm, # Not used by forward but required by init
+            # write_lead_engine parameter removed
             polish_engine=fake_lc_llm, 
             framework='langchain'
         )
@@ -78,7 +78,7 @@ class TestPolishPageModule(unittest.TestCase):
         dspy.settings.configure(lm=mock_dspy_lm) # Configure DSPy context
 
         polish_module = PolishPageModule(
-            write_lead_engine=mock_dspy_lm,
+            # write_lead_engine parameter removed
             polish_engine=mock_dspy_lm,
             framework='dspy'
         )
@@ -95,7 +95,7 @@ class TestPolishPageModule(unittest.TestCase):
         response_text = "Polished LangChain article content."
         fake_lc_llm = FakeListLLM(responses=[response_text])
         polish_module = PolishPageModule(
-            write_lead_engine=fake_lc_llm,
+            # write_lead_engine parameter removed
             polish_engine=fake_lc_llm,
             framework='langchain'
         )
@@ -112,13 +112,14 @@ class TestPolishPageModule(unittest.TestCase):
 
 class TestArticlePolishingModule(unittest.TestCase):
     def setUp(self):
-        self.mock_article_gen_lm_dummy = FakeListLLM(responses=["dummy gen response"]) # For write_lead_engine if it were used
+        # self.mock_article_gen_lm_dummy = FakeListLLM(responses=["dummy gen response"]) # No longer needed
+        pass
 
     def test_init_dspy(self):
         mock_dspy_polish_lm = MockDSPyLM()
         module = ArticlePolishingModule(
-            article_gen_lm=mock_dspy_polish_lm, # Passed to PolishPageModule's write_lead_engine
-            article_polish_lm=mock_dspy_polish_lm, # Passed to PolishPageModule's polish_engine
+            # article_gen_lm parameter removed
+            article_polish_lm=mock_dspy_polish_lm, 
             framework='dspy'
         )
         self.assertEqual(module.framework, 'dspy')
@@ -128,7 +129,7 @@ class TestArticlePolishingModule(unittest.TestCase):
     def test_init_langchain(self):
         fake_lc_polish_llm = FakeListLLM(responses=["lc polish response for apm"])
         module = ArticlePolishingModule(
-            article_gen_lm=self.mock_article_gen_lm_dummy, 
+            # article_gen_lm parameter removed
             article_polish_lm=fake_lc_polish_llm,
             framework='langchain'
         )
@@ -146,7 +147,7 @@ class TestArticlePolishingModule(unittest.TestCase):
         mock_parse_article_into_dict.return_value = {"Polished Title": "Polished LangChain article content."}
 
         module = ArticlePolishingModule(
-            article_gen_lm=self.mock_article_gen_lm_dummy,
+            # article_gen_lm parameter removed
             article_polish_lm=fake_lc_polish_llm,
             framework='langchain'
         )
