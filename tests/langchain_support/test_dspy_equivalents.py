@@ -130,11 +130,11 @@ class TestLangchainPredict(unittest.TestCase):
         # The first output field will try to get raw_prediction['title'] (empty), etc.
         # This part of the logic in __call__ for multiple outputs from a single 'text' field might need refinement
         # if automatic splitting was intended. Current code: `output_dict[field] = raw_prediction.get(field, "")`
-        self.assertEqual(result["title"], "") 
-        self.assertEqual(result["summary"], "")
-        # If the intent was for the 'text' field to be assigned to the first output_field:
-        # self.assertEqual(result["title"], responses[0])
+        # self.assertEqual(result["title"], "") # This was the old expectation
         # self.assertEqual(result["summary"], "")
+        # If the intent was for the 'text' field to be assigned to the first output_field:
+        self.assertEqual(result["title"], responses[0]) # New expectation: first field gets 'text'
+        self.assertEqual(result["summary"], "")     # Second field remains empty as 'summary' key is not in raw_prediction
         # This test highlights that for multiple outputs, structured dict from LLM is better.
 
     def test_call_missing_input_field(self):

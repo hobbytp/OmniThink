@@ -1,8 +1,12 @@
 import dspy
-from src.tools.mindmap import MindMap
+from src.tools.mindmap import MindMap # Restored import
+# from unittest.mock import MagicMock # Removed temporary import
+# MindMap = MagicMock() # Removed temporary mock
+
 from src.utils.ArticleTextProcessing import ArticleTextProcessing
 from typing import Union, Optional, Tuple
 from src.langchain_support.dspy_equivalents import LangchainModule, LangchainSignature, LangchainPredict
+from langchain_core.language_models.llms import BaseLLM # Added for type hinting
 
 # This code is originally sourced from Repository STORM
 # URL: [https://github.com/stanford-oval/storm]
@@ -10,7 +14,7 @@ from src.langchain_support.dspy_equivalents import LangchainModule, LangchainSig
 class OutlineGenerationModule():
 
     def __init__(self,
-                 outline_gen_lm: Union[dspy.dsp.LM, dspy.dsp.HFModel],
+                 outline_gen_lm: Union[dspy.LM, BaseLLM], # Use BaseLLM for LangChain, dspy.LM for DSPy. Removed dspy.HFModel.
                  framework: str = 'dspy'):
         super().__init__()
         self.outline_gen_lm = outline_gen_lm
@@ -19,7 +23,7 @@ class OutlineGenerationModule():
 
     def generate_outline(self,
                          topic: str,
-                         mindmap: MindMap,
+                         mindmap: MindMap, 
                          ):
 
         concepts = mindmap.export_categories_and_concepts()
@@ -68,7 +72,7 @@ Write the page outline:
 class WriteOutline(dspy.Module): # Can also be LangchainModule
     """Generate the outline for the Wikipedia page."""
 
-    def __init__(self, engine: Union[dspy.dsp.LM, dspy.dsp.HFModel], framework: str = 'dspy'):
+    def __init__(self, engine: Union[dspy.LM, BaseLLM], framework: str = 'dspy'): # Use BaseLLM for LangChain, dspy.LM for DSPy. Removed dspy.HFModel.
         super().__init__()
         self.engine = engine
         self.framework = framework
@@ -141,3 +145,4 @@ class WritePageOutline(dspy.Signature):
     topic = dspy.InputField(prefix="The topic you want to write: ", format=str)
     outline = dspy.OutputField(prefix="Write the Wikipedia page outline:\n", format=str)
 
+# Ensure this file ends with a newline character for POSIX compliance if necessary

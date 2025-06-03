@@ -3,6 +3,7 @@ from typing import Union
 import dspy
 from src.utils.ArticleTextProcessing import ArticleTextProcessing
 from src.langchain_support.dspy_equivalents import LangchainModule, LangchainSignature, LangchainPredict
+from langchain_core.language_models.llms import BaseLLM # Added for type hinting
 
 # This code is originally sourced from Repository STORM
 # URL: [https://github.com/stanford-oval/storm]
@@ -13,8 +14,8 @@ class ArticlePolishingModule():
     """
 
     def __init__(self,
-                 # article_gen_lm: Union[dspy.dsp.LM, dspy.dsp.HFModel], # Removed as it was unused
-                 article_polish_lm: Union[dspy.dsp.LM, dspy.dsp.HFModel], # This is the one used
+                 # article_gen_lm: Union[dspy.LM, BaseLLM], # Removed as it was unused
+                 article_polish_lm: Union[dspy.LM, BaseLLM], # Use BaseLLM for LangChain, dspy.LM for DSPy. Removed dspy.HFModel.
                  framework: str = 'dspy'):
         # self.article_gen_lm = article_gen_lm # Removed
         self.article_polish_lm = article_polish_lm
@@ -85,8 +86,8 @@ class PolishPage(dspy.Signature):
 
 class PolishPageModule(dspy.Module): # Can also be LangchainModule
     def __init__(self, 
-                 # write_lead_engine: Union[dspy.dsp.LM, dspy.dsp.HFModel], # Removed as it was unused
-                 polish_engine: Union[dspy.dsp.LM, dspy.dsp.HFModel],
+                 # write_lead_engine: Union[dspy.LM, BaseLLM], # Removed as it was unused
+                 polish_engine: Union[dspy.LM, BaseLLM], # Use BaseLLM for LangChain, dspy.LM for DSPy. Removed dspy.HFModel.
                  framework: str = 'dspy'):
         super().__init__()
         # self.write_lead_engine = write_lead_engine # Removed

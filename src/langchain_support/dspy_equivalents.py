@@ -124,7 +124,7 @@ class LangchainPredict:
         # LLMChain.invoke returns a dictionary, typically with a 'text' key for the output.
         # For older versions, chain.run(**kwargs) or chain.predict(**kwargs) might be used,
         # which often return a string directly. Using invoke for more modern LC.
-        raw_prediction = self.chain.invoke(kwargs)
+        raw_prediction = self.chain.invoke(kwargs) # Pass kwargs as a single dict argument
 
         if not self.signature.output_fields:
             # No output fields defined, return raw prediction or an empty dict
@@ -143,11 +143,24 @@ class LangchainPredict:
                     output_dict[output_field_name] = next(iter(raw_prediction.values()))
                 else: # Should not happen if LLM produced output
                     output_dict[output_field_name] = "" 
-            else:
-                # Multiple output fields. Assume the LLM produced a dict where keys match output_fields.
-                # This is a simple mapping. For more complex scenarios, an OutputParser is needed.
-                for field in self.signature.output_fields:
-                    output_dict[field] = raw_prediction.get(field, "") # Default to empty string if key missing
+            else: # Multiple output fields
+                # If 'text' is in raw_prediction and we have output fields,
+                # assign it to the first output field as a default behavior.
+                # Then, attempt to fill any other output fields if their keys are in raw_prediction.
+                assigned_first_field = False
+                if 'text' in raw_prediction and self.signature.output_fields:
+                    output_dict[self.signature.output_fields[0]] = raw_prediction['text']
+                    assigned_first_field = True
+                
+                # For other fields (or all if 'text' wasn't used for the first one),
+                # try to get them by name from raw_prediction.
+                for i, field in enumerate(self.signature.output_fields):
+                    if i == 0 and assigned_first_field:
+                        continue # Already handled by 'text' key
+                    # If the field is not yet in output_dict, or if we want to overwrite
+                    # in case raw_prediction has a specific key for it (besides 'text' for field 0)
+                    output_dict[field] = raw_prediction.get(field, "" if field not in output_dict else output_dict[field])
+
         elif isinstance(raw_prediction, str):
             # If LLMChain returns a string directly (e.g. via .run() or if LLM is not a ChatModel returning AIMessage)
             if len(self.signature.output_fields) == 1:

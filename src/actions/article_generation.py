@@ -9,6 +9,7 @@ import dspy
 import sys
 from src.utils.ArticleTextProcessing import ArticleTextProcessing
 from src.langchain_support.dspy_equivalents import LangchainModule, LangchainSignature, LangchainPredict
+from langchain_core.language_models.llms import BaseLLM # Added for type hinting
 
 
 
@@ -22,7 +23,7 @@ class ArticleGenerationModule():
 
     def __init__(self,
                  retriever,
-                 article_gen_lm=Union[dspy.dsp.LM, dspy.dsp.HFModel], # This will be dspy.LM or Langchain LLM
+                 article_gen_lm=Union[dspy.LM, BaseLLM], # Use BaseLLM for LangChain, dspy.LM for DSPy. Removed dspy.HFModel.
                  retrieve_top_k: int = 10,
                  max_thread_num: int = 10,
                  agent_name: str = 'WriteSection',
@@ -128,7 +129,7 @@ Write the section with proper inline citations (Start your writing with # sectio
 class ConvToSection(dspy.Module): # Can also be LangchainModule if we refactor further, but dspy.Module is fine for now
     """Use the information collected from the information-seeking conversation to write a section."""
 
-    def __init__(self, class_name, engine: Union[dspy.dsp.LM, dspy.dsp.HFModel], framework: str = 'dspy'):
+    def __init__(self, class_name, engine: Union[dspy.LM, BaseLLM], framework: str = 'dspy'): # Use BaseLLM for LangChain, dspy.LM for DSPy. Removed dspy.HFModel.
         super().__init__()
         self.framework = framework
         self.engine = engine # This is the LLM
