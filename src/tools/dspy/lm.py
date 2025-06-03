@@ -2,8 +2,9 @@ import random
 import threading
 import time
 import dspy
+# Removed: from dspy import models
 import os
-from openai import OpenAI
+from openai import OpenAI # This is the OpenAI client library
 from zhipuai import ZhipuAI
 from typing import Optional, Literal, Any, List, Dict # Added Dict
 import dashscope
@@ -13,7 +14,7 @@ from dashscope import Generation
 # URL: [https://github.com/stanford-oval/storm]
 
 
-class OpenAIModel_dashscope(dspy.OpenAI):
+class OpenAIModel_dashscope(dspy.OpenAI): # Attempt to use dspy.OpenAI directly
     """A wrapper class for dspy.OpenAI."""
 
     def __init__(
@@ -116,7 +117,7 @@ class OpenAIModel_dashscope(dspy.OpenAI):
         return [] # Ensure return outside loop if all retries fail
 
 
-class BaseDeepSeekModel(dspy.OpenAI):
+class BaseDeepSeekModel(dspy.OpenAI): # Attempt to use dspy.OpenAI directly
     """
     Base class for DeepSeek models providing common initialization for API key,
     base URL, client, and token tracking. It also handles the common API call
